@@ -14,23 +14,101 @@ DeepSeek Harness（DSH）的 Skillhub 市场插件：在线搜索、筛选和安
 
 ## 安装
 
-插件包位于本仓库 `skillhub-market/`。在 DSH 中通过插件管理器把该目录作为本地 bundle 安装，或将其加入 profile 的 bundle 列表。包内 `cordis.patch.yml` 会插入 `@local/dsh-skillhub-market` 行。
+### 前置要求
 
-安装后刷新 DSH Web GUI，侧边栏会出现“Skillhub 技能市场”入口。
+- DeepSeek Harness `>= 0.2.2-rc.1`
+- Node.js `>= 22`（推荐 24）
+- Git
+- 一个 DSH profile（下面以 `desktop` 为例；请替换成你的 profile 名）
 
-## 开发
+仓库根目录就是插件包根目录，`package.json`、`cordis.patch.yml`、`lib/` 都在这里。
+
+### 从源码 clone、构建、安装
 
 ```bash
-cd skillhub-market
-npm install --ignore-scripts --cache .npm-cache
+git clone https://github.com/MRevenger/dsh-skillhub-market.git
+cd dsh-skillhub-market
+
+# 安装构建依赖。--omit=peer 跳过 DSH/React 等由宿主提供的 peer 依赖。
+npm ci --omit=peer
+
+# 类型检查 + 构建 + 测试（可选，但推荐）
 npm run typecheck
 npm run build
 npm test
 ```
 
-- 本机（Windows + DSH 沙箱）原生 esbuild 的子进程启动被禁止，`build.mjs` 使用 `esbuild-wasm` 的浏览器构建 API + 虚拟文件系统插件，因此无需 esbuild 二进制。
-- 测试使用 Node 24 的 TypeScript 类型剥离；Node 测试运行器默认按文件起子进程会触发 `spawn EPERM`，脚本已加 `--test-isolation=none`。
-- 构建产物：`lib/index.js`（宿主 ESM）、`lib/client.js`（浏览器 `window.__ModuleLoader__` 工厂）。
+构建产物：
+
+- `lib/index.js`：DSH host 入口（ESM）
+- `lib/client.js`：浏览器 `window.__ModuleLoader__` 工厂
+
+安装方式任选一种：
+
+**方式 A：DSH 插件管理器（推荐，已验证）**
+
+打开 DSH 的插件管理界面，选择“安装本地 bundle”，指向 clone 下来的
+`dsh-skillhub-market` 目录。插件管理器会读取 `package.json` 的
+`dsh.bundle.patch` 和 `dsh.client`，把 `@local/dsh-skillhub-market` 加入
+profile 的 bundle 列表并应用补丁。
+
+**方式 B：DSH CLI**
+
+```bash
+dsh plugin --profile desktop add github:MRevenger/dsh-skillhub-market#v1.1.0
+```
+
+该命令会把 GitHub 仓库作为依赖安装到 profile。若安装后未自动加入 bundle
+列表，在 profile 的 `dsh.profile.bundles` 中加入
+`@local/dsh-skillhub-market`，或在插件管理器中启用它。
+
+**方式 C：Release 压缩包**
+
+1. 从 [Releases](https://github.com/MRevenger/dsh-skillhub-market/releases)
+   下载 `dsh-skillhub-market-v1.1.0.zip`。
+2. 解压得到 `dsh-skillhub-market/` 目录。
+3. 用方式 A 选择该目录，或执行：
+
+```bash
+dsh plugin --profile desktop add /absolute/path/to/dsh-skillhub-market
+```
+
+安装完成后：
+
+- 重启 DSH，或刷新 Web GUI；
+- 侧边栏出现“Skillhub 技能市场”；
+- 若没有出现，检查插件管理器中 `@local/dsh-skillhub-market` 是否 enabled。
+
+## 开发
+
+```bash
+npm ci --omit=peer
+npm run typecheck
+npm run build
+npm test
+```
+
+- 构建使用 `esbuild-wasm` 的浏览器构建 API + 虚拟文件系统插件，不依赖原生
+  esbuild 二进制；这在 Windows/DSH 沙箱下也能工作。
+- 测试使用 Node 24 的 TypeScript 类型剥离；Node 测试运行器默认按文件起子进程
+  会触发 `spawn EPERM`，脚本已加 `--test-isolation=none`。
+- 本地开发时，`npm run build` 后刷新 GUI 即可加载新的 `lib/client.js`；host
+  入口变更需要重启 DSH。
+
+## 发布
+
+推送 `v*` tag 会触发
+[`.github/workflows/release.yml`](.github/workflows/release.yml)：
+
+1. `npm ci --omit=peer`
+2. `npm run typecheck`
+3. `npm test`
+4. `npm run build`
+5. 打包 `dsh-skillhub-market-<tag>.zip` 和 `.sha256`
+6. 创建 GitHub Release 并上传资产
+
+也可以在 Actions 页面手动触发 `Build and Release`，填入已存在的 tag。
+Release 资产是完整可安装的 bundle，不包含 `node_modules` 和源码构建缓存。
 
 ## Skillhub API 与参数映射
 

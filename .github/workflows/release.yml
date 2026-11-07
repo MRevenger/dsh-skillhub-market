@@ -1,0 +1,79 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release (for example v1.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build, test and release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --omit=peer --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Package bundle
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p "dist/dsh-skillhub-market"
+          cp -R lib locale icon.svg cordis.patch.yml package.json README.md LICENSE \
+            "dist/dsh-skillhub-market/"
+          (
+            cd dist
+            zip -r "dsh-skillhub-market-${TAG}.zip" dsh-skillhub-market
+            sha256sum "dsh-skillhub-market-${TAG}.zip" \
+              > "dsh-skillhub-market-${TAG}.zip.sha256"
+          )
+          ls -lh dist
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.zip dist/*.sha256 --clobber
+          else
+            gh release create "$TAG" dist/*.zip dist/*.sha256 \
+              --title "Skillhub Skill Market $TAG" \
+              --generate-notes \
+              --verify-tag
+          fi
