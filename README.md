@@ -99,6 +99,15 @@ npm test
 - 重装同一 slug 时保留 `displayName`、`note`。
 - **只写 JSON，不改 `SKILL.md` 的 `name`。**
 
+## 安全说明
+
+插件不会执行下载技能包中的任何代码，只读取 `SKILL.md` 和文件内容。
+
+唯一会被静态扫描标记为 `MEDIUM` 的是“打开本地目录”：host 端使用
+`node:child_process` 启动系统文件管理器（Windows `explorer.exe`、macOS `open`、
+Linux `xdg-open`）。调用不经过 shell，参数是已校验且限定在
+`$DSH_HOME/skills/<dir>` 内的绝对路径，不会拼接用户输入的命令。
+
 ## 已知限制
 
 - Skillhub `trending` 排序不存在，只能以 `score` 近似“近期飙升”。
