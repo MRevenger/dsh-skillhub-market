@@ -1,0 +1,3 @@
+- insert:
+    - id: skillhub-market
+      name: '@local/dsh-skillhub-market'
